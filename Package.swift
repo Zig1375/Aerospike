@@ -5,7 +5,7 @@ import PackageDescription
 let package = Package(
         name: "Aerospike",
         products: [
-            .executable(
+            .library(
                 name: "Aerospike",
                 targets: ["Aerospike"]
             )
