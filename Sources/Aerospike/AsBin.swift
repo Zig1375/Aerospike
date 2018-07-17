@@ -42,25 +42,25 @@ public struct AsBin {
         self.increment = false;
     }
 
-    var string  : String  { return self.get(); }
-    var boolean : Bool    { return self.get(); }
-    var double  : Double? { return self.get(); }
-    var integer : Int?    { return self.get(); }
+    public var string  : String  { return self.get(); }
+    public var boolean : Bool    { return self.get(); }
+    public var double  : Double? { return self.get(); }
+    public var integer : Int?    { return self.get(); }
 
 
-    func get() -> String {
+    public func get() -> String {
         return "\(self.value)";
     }
 
-    func get() -> Double? {
+    public func get() -> Double? {
         return self.value as? Double;
     }
 
-    func get() -> Int64? {
+    public func get() -> Int64? {
         return self.value as? Int64;
     }
 
-    func get() -> Int? {
+    public func get() -> Int? {
         if let i: Int64 = self.get() {
             return Int(i);
         }
@@ -68,7 +68,7 @@ public struct AsBin {
         return nil;
     }
 
-    func get() -> Bool {
+    public func get() -> Bool {
         if let i: Int64 = self.get() {
             return i != 0;
         }
