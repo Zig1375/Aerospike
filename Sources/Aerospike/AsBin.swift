@@ -3,36 +3,43 @@ import Foundation
 public struct AsBin {
     public let value: Any;
     public let type: BinType;
+    public let increment: Bool;
 
     public init(value: Any, type: BinType) {
         self.value = value;
         self.type  = type;
+        self.increment = false;
     }
 
-    public init(_ value: Int) {
+    public init(_ value: Int, increment: Bool = false) {
         self.value = Int64(value);
         self.type = .Integer;
+        self.increment = increment;
     }
 
-    public init(_ value: Int64) {
+    public init(_ value: Int64, increment: Bool = false) {
         self.value = value;
         self.type = .Integer;
+        self.increment = increment;
     }
 
 
-    public init(_ value: Double) {
+    public init(_ value: Double, increment: Bool = false) {
         self.value = value;
         self.type = .Double;
+        self.increment = increment;
     }
 
     public init(_ value: String) {
         self.value = value;
         self.type = .String;
+        self.increment = false;
     }
 
     public init(_ value: Bool) {
         self.value = Int64(value ? 1 : 0);
         self.type = .Boolean;
+        self.increment = false;
     }
 
     var string  : String  { return self.get(); }

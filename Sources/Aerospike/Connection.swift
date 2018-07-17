@@ -79,32 +79,44 @@ public class Connection {
         var asKey: as_key = as_key();
         as_key_init_str(&asKey, ns, set, key);
 
-        var rec = as_record();
-        as_record_init(&rec, UInt16(bins.count));
+        var ops = as_operations();
+        as_operations_init(&ops, UInt16(bins.count));
 
         for (name, bin) in bins {
             switch (bin.type) {
                 case .Integer:
-                    as_record_set_integer(&rec, name, as_integer_new(bin.get()!));
-                    break;
+                    if (bin.increment) {
+                        as_operations_add_incr(&ops, name, bin.get()!);
+                    } else {
+                        as_operations_add_write_int64(&ops, name, bin.get()!);
+                    }
 
                 case .Double:
-                    as_record_set_double(&rec, name, bin.double!);
+                    if (bin.increment) {
+                        as_operations_add_incr_double(&ops, name, bin.get()!);
+                    } else {
+                        as_operations_add_write_double(&ops, name, bin.get()!);
+                    }
+
 
                 case .String:
-                    as_record_set_str(&rec, name, bin.string);
+                    as_operations_add_write_str(&ops, name, bin.string);
 
                 case .Boolean:
-                    as_record_set_integer(&rec, name, as_integer_new( (bin.boolean) ? 1 : 0 ));
+                    as_operations_add_write_int64(&ops, name, (bin.boolean) ? 1 : 0 );
 
                 default:
                     break;
             }
         }
 
-        if (aerospike_key_put(&self.conn, &self.err, nil, &asKey, &rec) != AEROSPIKE_OK) {
+        var rec : UnsafeMutablePointer<as_record>? = nil;
+        if (aerospike_key_operate(&self.conn, &self.err, nil, &asKey, &ops, &rec) == AEROSPIKE_OK) {
+            as_record_destroy(&rec!.pointee);
+        } else {
             print("AEROSPIKE => key: \(key) => ERROR(\(self.err.code.rawValue)) \(Utils.getText2(&self.err.message, 1024))");
         }
-        as_record_destroy(&rec);
+
+        as_operations_destroy(&ops);
     }
 }
