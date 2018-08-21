@@ -23,7 +23,6 @@ public struct AsBin {
         self.increment = increment;
     }
 
-
     public init(_ value: Double, increment: Bool = false) {
         self.value = value;
         self.type = .Double;
@@ -41,6 +40,7 @@ public struct AsBin {
         self.type = .Boolean;
         self.increment = false;
     }
+
 
     public var string  : String  { return self.get(); }
     public var boolean : Bool    { return self.get(); }
