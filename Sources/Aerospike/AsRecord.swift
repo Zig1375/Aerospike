@@ -98,7 +98,6 @@ public class AsRecord {
             }
 
             guard val_key.pointee.type == BinType.String.rawValue else {
-                print("Only key is String supported")
                 return nil;
             }
 

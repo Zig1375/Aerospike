@@ -6,7 +6,7 @@ public class Connection {
     private var err: as_error;
     private let namespace: String?;
 
-    public init?(host: String, port: UInt16 = 3000, namespace: String? = nil) {
+    public init?(host: String, port: UInt16 = 3000, namespace: String? = nil) throws {
         self.namespace = namespace;
 
         var config: as_config = as_config();
@@ -19,7 +19,7 @@ public class Connection {
         aerospike_init(&self.conn, &config);
 
         if (aerospike_connect(&self.conn, &self.err) != AEROSPIKE_OK) {
-            print("AEROSPIKE => CONNECT ERROR(\(self.err.code.rawValue)) \(Utils.getText2(&self.err.message, 1024))");
+            throw AerospikeError.Error(message: Utils.getText2(&self.err.message, 1024), code: self.err.code.rawValue)
             return nil;
         }
     }
@@ -29,9 +29,9 @@ public class Connection {
         aerospike_destroy(&self.conn);
     }
 
-    public func get(namespase: String? = nil, set: String, key: String) -> AsRecord? {
+    public func get(namespase: String? = nil, set: String, key: String) throws -> AsRecord? {
         guard let ns = namespase ?? self.namespace else {
-            print("AEROSPIKE => Namespace is required");
+            throw AerospikeError.Required(field: "Required namespace");
             return nil;
         }
 
@@ -45,12 +45,10 @@ public class Connection {
                 break;
 
             case AEROSPIKE_ERR_RECORD_NOT_FOUND:
-                print("AEROSPIKE => key: \(key) => NOT FOUND");
                 return nil;
 
             default:
-                print("AEROSPIKE => key: \(key) => ERROR(\(self.err.code.rawValue)) \(Utils.getText2(&self.err.message, 1024))");
-                return nil;
+                throw AerospikeError.Error(message: Utils.getText2(&self.err.message, 1024), code: self.err.code.rawValue);
         }
 
         let record: AsRecord?;
@@ -64,15 +62,15 @@ public class Connection {
         return record;
     }
 
-    public func set(namespase: String? = nil, set: String, key: String, record: AsRecord) {
+    public func set(namespase: String? = nil, set: String, key: String, record: AsRecord) throws {
         guard let ns = namespase ?? self.namespace else {
-            print("AEROSPIKE => Namespace is required");
+            throw AerospikeError.Required(message: "Required namespace");
             return;
         }
 
         let bins = record.getBins();
         if (bins.count == 0) {
-            print("AEROSPIKE => No any Bin");
+            throw AerospikeError.Required(message: "No any Bin");
             return;
         }
 
@@ -114,14 +112,14 @@ public class Connection {
         if (aerospike_key_operate(&self.conn, &self.err, nil, &asKey, &ops, &rec) == AEROSPIKE_OK) {
             as_record_destroy(&rec!.pointee);
         } else {
-            print("AEROSPIKE => key: \(key) => ERROR(\(self.err.code.rawValue)) \(Utils.getText2(&self.err.message, 1024))");
+            throw AerospikeError.Error(message: Utils.getText2(&self.err.message, 1024), code: self.err.code.rawValue);
         }
 
         as_operations_destroy(&ops);
     }
 
 
-    public func udfRegister(name: String, content: String) -> Bool {
+    public func udfRegister(name: String, content: String) throws -> Bool {
         guard let umpContent = Utils.stringToUPointer(content) else {
             return false;
         }
@@ -131,7 +129,7 @@ public class Connection {
         as_bytes_init_wrap(&udf_content, umpContent, UInt32(content.utf8.count), true);
 
         if (aerospike_udf_put(&self.conn, &self.err, nil, name, AS_UDF_TYPE_LUA, &udf_content) != AEROSPIKE_OK) {
-            print("AEROSPIKE => aerospike_udf_put => ERROR(\(self.err.code.rawValue)) \(Utils.getText2(&self.err.message, 1024))");
+            throw AerospikeError.Error(message: Utils.getText2(&self.err.message, 1024), code: self.err.code.rawValue);
             result = false;
         }
 
@@ -139,18 +137,18 @@ public class Connection {
         return result;
     }
 
-    public func udfRemove(name: String) -> Bool {
+    public func udfRemove(name: String) throws -> Bool {
         if (aerospike_udf_remove(&self.conn, &self.err, nil, name) != AEROSPIKE_OK) {
-            print("AEROSPIKE => aerospike_udf_remove => ERROR(\(self.err.code.rawValue)) \(Utils.getText2(&self.err.message, 1024))");
+            throw AerospikeError.Error(message: Utils.getText2(&self.err.message, 1024), code: self.err.code.rawValue);
             return false;
         }
 
         return true;
     }
 
-    public func udfApply(module: String, func fname: String, namespase: String? = nil, set: String, key: String, args: [AsBin] = []) -> AsBin? {
+    public func udfApply(module: String, func fname: String, namespase: String? = nil, set: String, key: String, args: [AsBin] = []) throws -> AsBin? {
         guard let ns = namespase ?? self.namespace else {
-            print("AEROSPIKE => Namespace is required");
+            throw AerospikeError.Required(message: "Required namespace");
             return nil;
         }
 
@@ -168,7 +166,7 @@ public class Connection {
                     if let i = bin.integer {
                         as_arraylist_append_int64(&asArgs, Int64(i));
                     } else {
-                        print("Incorrect value in args");
+                        throw AerospikeError.Required("Incorrect value in args");
                         return nil;
                     }
 
@@ -176,12 +174,12 @@ public class Connection {
                     if let i = bin.double {
                         as_arraylist_append_double(&asArgs, i);
                     } else {
-                        print("Incorrect value in args");
+                        throw AerospikeError.Required("Incorrect value in args");
                         return nil;
                     }
 
                 default:
-                    print("Unsupported type in args");
+                    throw AerospikeError.Required("Unsupported type in args");
                     return nil;
             }
 
@@ -189,7 +187,7 @@ public class Connection {
 
         var p_result: UnsafeMutablePointer<as_val>? = nil;
         if (aerospike_key_apply(&self.conn, &self.err, nil, &asKey, module, fname, castArrayListToList(&asArgs), &p_result) != AEROSPIKE_OK) {
-            print("AEROSPIKE => aerospike_key_apply => ERROR(\(self.err.code.rawValue)) \(Utils.getText2(&self.err.message, 1024))");
+            throw AerospikeError.Error(message: Utils.getText2(&self.err.message, 1024), code: self.err.code.rawValue);
             return nil;
         }
 
