@@ -119,4 +119,84 @@ public class Connection {
 
         as_operations_destroy(&ops);
     }
+
+
+    public func udfRegister(name: String, content: String) -> Bool {
+        guard let umpContent = Utils.stringToUPointer(content) else {
+            return false;
+        }
+
+        var result = true;
+        var udf_content = as_bytes();
+        as_bytes_init_wrap(&udf_content, umpContent, UInt32(content.utf8.count), true);
+
+        if (aerospike_udf_put(&self.conn, &self.err, nil, name, AS_UDF_TYPE_LUA, &udf_content) != AEROSPIKE_OK) {
+            print("AEROSPIKE => aerospike_udf_put => ERROR(\(self.err.code.rawValue)) \(Utils.getText2(&self.err.message, 1024))");
+            result = false;
+        }
+
+        as_bytes_destroy(&udf_content);
+        return result;
+    }
+
+    public func udfRemove(name: String) -> Bool {
+        if (aerospike_udf_remove(&self.conn, &self.err, nil, name) != AEROSPIKE_OK) {
+            print("AEROSPIKE => aerospike_udf_remove => ERROR(\(self.err.code.rawValue)) \(Utils.getText2(&self.err.message, 1024))");
+            return false;
+        }
+
+        return true;
+    }
+
+    public func udfApply(module: String, func fname: String, namespase: String? = nil, set: String, key: String, args: [AsBin] = []) -> AsBin? {
+        guard let ns = namespase ?? self.namespace else {
+            print("AEROSPIKE => Namespace is required");
+            return nil;
+        }
+
+        var asKey: as_key = as_key();
+        as_key_init_str(&asKey, ns, set, key);
+
+        var asArgs = as_arraylist();
+        as_arraylist_init(&asArgs, UInt32(args.count), 0);
+        for bin in args {
+            switch(bin.type) {
+                case .String:
+                    as_arraylist_append_str(&asArgs, bin.string);
+
+                case .Integer:
+                    if let i = bin.integer {
+                        as_arraylist_append_int64(&asArgs, Int64(i));
+                    } else {
+                        print("Incorrect value in args");
+                        return nil;
+                    }
+
+                case .Double:
+                    if let i = bin.double {
+                        as_arraylist_append_double(&asArgs, i);
+                    } else {
+                        print("Incorrect value in args");
+                        return nil;
+                    }
+
+                default:
+                    print("Unsupported type in args");
+                    return nil;
+            }
+
+        }
+
+        var p_result: UnsafeMutablePointer<as_val>? = nil;
+        if (aerospike_key_apply(&self.conn, &self.err, nil, &asKey, module, fname, castArrayListToList(&asArgs), &p_result) != AEROSPIKE_OK) {
+            print("AEROSPIKE => aerospike_key_apply => ERROR(\(self.err.code.rawValue)) \(Utils.getText2(&self.err.message, 1024))");
+            return nil;
+        }
+
+        if let rval = p_result {
+            return AsRecord.valToBin(val: UnsafePointer(rval))
+        }
+
+        return nil;
+    }
 }

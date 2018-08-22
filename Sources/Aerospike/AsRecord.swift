@@ -29,11 +29,11 @@ public class AsRecord {
 
                 if let type = BinType(rawValue: as_bin_get_type(bin)) {
                     if (type == .List) {
-                        if let bin = parseList(list: as_record_get_list(rec, name)) {
+                        if let bin = AsRecord.parseList(list: as_record_get_list(rec, name)) {
                             self.bins[name] = bin;
                         }
                     } else if (type == .Map) {
-                        if let bin = parseMap(map: as_record_get_map(rec, name)) {
+                        if let bin = AsRecord.parseMap(map: as_record_get_map(rec, name)) {
                             self.bins[name] = bin;
                         }
                     } else {
@@ -80,7 +80,7 @@ public class AsRecord {
         }
     }
 
-    private func parseMap(map: UnsafeMutablePointer<as_map>) -> AsBin? {
+    static private func parseMap(map: UnsafeMutablePointer<as_map>) -> AsBin? {
         var it = as_map_iterator_u();
         as_map_iterator_init(&it, map);
 
@@ -109,7 +109,7 @@ public class AsRecord {
                 return nil;
             }
 
-            if let bin = valToBin(val: val_val) {
+            if let bin = AsRecord.valToBin(val: val_val) {
                 result[key] = bin;
             } else {
                 return nil;
@@ -119,7 +119,7 @@ public class AsRecord {
         return AsBin(value: result, type: .Map);
     }
 
-    private func parseList(list: UnsafeMutablePointer<as_list>) -> AsBin? {
+    static private func parseList(list: UnsafeMutablePointer<as_list>) -> AsBin? {
         var it = as_list_iterator_u();
         as_list_iterator_init(&it, list);
 
@@ -129,7 +129,7 @@ public class AsRecord {
 
         var result = [AsBin]();
         while ( as_arraylist_iterator_has_next(&it.arraylist) ) {
-            if let val = as_arraylist_iterator_next(&it.arraylist), let bin = valToBin(val: val) {
+            if let val = as_arraylist_iterator_next(&it.arraylist), let bin = AsRecord.valToBin(val: val) {
                 result.append(bin);
             } else {
                 return nil;
@@ -139,7 +139,7 @@ public class AsRecord {
         return AsBin(value: result, type: .List);
     }
 
-    private func valToBin(val: UnsafePointer<as_val>) -> AsBin? {
+    static public func valToBin(val: UnsafePointer<as_val>) -> AsBin? {
         guard let type = BinType(rawValue: val.pointee.type) else {
             return nil;
         }
@@ -167,18 +167,18 @@ public class AsRecord {
                 }
 
             case .List:
-                var m = UnsafeMutablePointer<as_val>(mutating: val);
-                if let t = as_list_fromval(m), let bin = parseList(list: t) {
+                let m = UnsafeMutablePointer<as_val>(mutating: val);
+                if let t = as_list_fromval(m), let bin = AsRecord.parseList(list: t) {
                     return bin;
                 }
 
             case .Map:
-                var m = UnsafeMutablePointer<as_val>(mutating: val);
-                if let t = as_map_fromval(m), let bin = parseMap(map: t) {
+                let m = UnsafeMutablePointer<as_val>(mutating: val);
+                if let t = as_map_fromval(m), let bin = AsRecord.parseMap(map: t) {
                     return bin;
                 }
 
-        default:
+            default:
                 return nil;
         }
 

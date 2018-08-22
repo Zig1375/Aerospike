@@ -16,4 +16,11 @@ class Utils {
             }
         }
     }
+
+    static func stringToUPointer(_ str: String) -> UnsafeMutablePointer<UInt8>? {
+        let arr : [UInt8] = Array(str.utf8);
+        let buf = UnsafeMutablePointer<UInt8>.allocate(capacity: arr.count)
+        memcpy(buf, arr, arr.count)
+        return buf
+    }
 }
