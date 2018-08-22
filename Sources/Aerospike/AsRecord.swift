@@ -1,13 +1,13 @@
 import Foundation
 import libaerospike
 
-public class AsRecord {
+public class AsRecord: CustomStringConvertible {
     private let isRead: Bool;
     private var bins = [String: AsBin]();
 
-    public subscript(key: String) -> AsBin? {
+    public subscript<T>(key: String) -> T? {
         get {
-            return self.bins[key];
+            return self.bins[key] as? T;
         }
     }
 
@@ -56,6 +56,7 @@ public class AsRecord {
         self.bins[name] = bin;
     }
 
+
     public func getBins() -> [String: AsBin] {
         return self.bins;
     }
@@ -63,24 +64,23 @@ public class AsRecord {
     private func parse(type: BinType, value: UnsafeMutablePointer<as_bin_value>) -> AsBin? {
         switch (type) {
             case .Boolean:
-                let b: Bool = (value.pointee.integer.value != 0);
-                return AsBin(value: b, type: .Boolean);
+                return (value.pointee.integer.value != 0);
 
             case .Integer:
-                return AsBin(value: value.pointee.integer.value, type: .Integer);
+                return Int(value.pointee.integer.value);
 
             case .Double:
-                return AsBin(value: value.pointee.dbl.value, type: .Double);
+                return value.pointee.dbl.value;
 
             case .String:
-                return AsBin(value: Utils.getText(value.pointee.string.value), type: .String);
+                return Utils.getText(value.pointee.string.value);
 
             default:
                 return nil;
         }
     }
 
-    static private func parseMap(map: UnsafeMutablePointer<as_map>) -> AsBin? {
+    static private func parseMap(map: UnsafeMutablePointer<as_map>) -> Map? {
         var it = as_map_iterator_u();
         as_map_iterator_init(&it, map);
 
@@ -88,37 +88,26 @@ public class AsRecord {
             as_hashmap_iterator_destroy(&it.hashmap);
         }
 
-        var result = [String: AsBin]();
+        var result = Map();
         while ( as_hashmap_iterator_has_next(&it.hashmap) ) {
             let val = as_hashmap_iterator_next(&it.hashmap);
             let pair = as_pair_fromval(val);
 
-            guard let val_key = as_pair_1(pair), let val_val = as_pair_2(pair) else {
+            guard let val_key = as_pair_1(pair), let val_val = as_pair_2(pair), let key : AnyHashable = AsRecord.parseAsVal(val: val_key) as? AnyHashable else {
                 return nil;
             }
 
-            guard val_key.pointee.type == BinType.String.rawValue else {
-                return nil;
-            }
-
-            let key: String;
-            if let t = as_string_fromval(val_key), let s = as_string_get(t) {
-                key = Utils.getText(s);
-            } else {
-                return nil;
-            }
-
-            if let bin = AsRecord.valToBin(val: val_val) {
+            if let bin = AsRecord.parseAsVal(val: val_val) {
                 result[key] = bin;
             } else {
                 return nil;
             }
         }
 
-        return AsBin(value: result, type: .Map);
+        return result;
     }
 
-    static private func parseList(list: UnsafeMutablePointer<as_list>) -> AsBin? {
+    static private func parseList(list: UnsafeMutablePointer<as_list>) -> List? {
         var it = as_list_iterator_u();
         as_list_iterator_init(&it, list);
 
@@ -126,43 +115,37 @@ public class AsRecord {
             as_arraylist_iterator_destroy(&it.arraylist);
         }
 
-        var result = [AsBin]();
+        var result = List();
         while ( as_arraylist_iterator_has_next(&it.arraylist) ) {
-            if let val = as_arraylist_iterator_next(&it.arraylist), let bin = AsRecord.valToBin(val: val) {
+            if let val = as_arraylist_iterator_next(&it.arraylist), let bin = AsRecord.parseAsVal(val: val) {
                 result.append(bin);
             } else {
                 return nil;
             }
         }
 
-        return AsBin(value: result, type: .List);
+        return result;
     }
 
-    static public func valToBin(val: UnsafePointer<as_val>) -> AsBin? {
+    static public func parseAsVal(val: UnsafePointer<as_val>) -> AsBin? {
         guard let type = BinType(rawValue: val.pointee.type) else {
             return nil;
         }
 
         switch(type) {
-        /*
-            case .Boolean:
-                if let t = as_boolean_fromval(val), let d = as_boolean_get(t) {
-                    return AsBin(value: d, type: .Boolean);
-                }
-*/
             case .Integer:
                 if let t = as_integer_fromval(val) {
-                    return AsBin(value: as_integer_get(t), type: .Integer);
+                    return Int(as_integer_get(t));
                 }
 
             case .Double:
                 if let t = as_double_fromval(val) {
-                    return AsBin(value: as_double_get(t), type: .Double);
+                    return as_double_get(t);
                 }
 
             case .String:
                 if let t = as_string_fromval(val), let s = as_string_get(t) {
-                    return AsBin(value: Utils.getText(s), type: .String);
+                    return Utils.getText(s);
                 }
 
             case .List:
@@ -182,5 +165,9 @@ public class AsRecord {
         }
 
         return nil;
+    }
+
+    public var description: String {
+        return self.bins.description;
     }
 }

@@ -5,8 +5,9 @@ public class Connection {
     private var conn: aerospike;
     private var err: as_error;
     private let namespace: String?;
+    private var error: AerospikeError? = nil;
 
-    public init?(host: String, port: UInt16 = 3000, namespace: String? = nil) throws {
+    public init(host: String, port: UInt16 = 3000, namespace: String? = nil) throws {
         self.namespace = namespace;
 
         var config: as_config = as_config();
@@ -20,7 +21,6 @@ public class Connection {
 
         if (aerospike_connect(&self.conn, &self.err) != AEROSPIKE_OK) {
             throw AerospikeError.Error(message: Utils.getText2(&self.err.message, 1024), code: self.err.code.rawValue)
-            return nil;
         }
     }
 
@@ -29,9 +29,9 @@ public class Connection {
         aerospike_destroy(&self.conn);
     }
 
-    public func get(namespase: String? = nil, set: String, key: String) throws -> AsRecord? {
+    public func get(namespase: String? = nil, set: String, key: String) -> AsRecord? {
         guard let ns = namespase ?? self.namespace else {
-            throw AerospikeError.Required(field: "Required namespace");
+            self.error = AerospikeError.Required(message: "Required namespace");
             return nil;
         }
 
@@ -48,7 +48,8 @@ public class Connection {
                 return nil;
 
             default:
-                throw AerospikeError.Error(message: Utils.getText2(&self.err.message, 1024), code: self.err.code.rawValue);
+                self.error = AerospikeError.Error(message: Utils.getText2(&self.err.message, 1024), code: self.err.code.rawValue);
+                return nil;
         }
 
         let record: AsRecord?;
@@ -62,15 +63,15 @@ public class Connection {
         return record;
     }
 
-    public func set(namespase: String? = nil, set: String, key: String, record: AsRecord) throws {
+    public func set(namespase: String? = nil, set: String, key: String, record: AsRecord) {
         guard let ns = namespase ?? self.namespace else {
-            throw AerospikeError.Required(message: "Required namespace");
+            self.error = AerospikeError.Required(message: "Required namespace");
             return;
         }
 
         let bins = record.getBins();
         if (bins.count == 0) {
-            throw AerospikeError.Required(message: "No any Bin");
+            self.error = AerospikeError.Required(message: "No any Bin");
             return;
         }
 
@@ -81,27 +82,24 @@ public class Connection {
         as_operations_init(&ops, UInt16(bins.count));
 
         for (name, bin) in bins {
-            switch (bin.type) {
-                case .Integer:
-                    if (bin.increment) {
-                        as_operations_add_incr(&ops, name, bin.get()!);
-                    } else {
-                        as_operations_add_write_int64(&ops, name, bin.get()!);
-                    }
+            switch (bin) {
+                case is Int:
+                    as_operations_add_write_int64(&ops, name, Int64(bin as! Int));
 
-                case .Double:
-                    if (bin.increment) {
-                        as_operations_add_incr_double(&ops, name, bin.get()!);
-                    } else {
-                        as_operations_add_write_double(&ops, name, bin.get()!);
-                    }
+                case is Double:
+                    as_operations_add_write_double(&ops, name, bin as! Double);
 
+                case is String:
+                    as_operations_add_write_str(&ops, name, bin as! String);
 
-                case .String:
-                    as_operations_add_write_str(&ops, name, bin.string);
+                case is Bool:
+                    as_operations_add_write_int64(&ops, name, (bin as! Bool) ? 1 : 0 );
 
-                case .Boolean:
-                    as_operations_add_write_int64(&ops, name, (bin.boolean) ? 1 : 0 );
+                case is List:
+                    break;
+
+                case is Map:
+                    break;
 
                 default:
                     break;
@@ -112,43 +110,42 @@ public class Connection {
         if (aerospike_key_operate(&self.conn, &self.err, nil, &asKey, &ops, &rec) == AEROSPIKE_OK) {
             as_record_destroy(&rec!.pointee);
         } else {
-            throw AerospikeError.Error(message: Utils.getText2(&self.err.message, 1024), code: self.err.code.rawValue);
+            self.error = AerospikeError.Error(message: Utils.getText2(&self.err.message, 1024), code: self.err.code.rawValue);
+            return;
         }
 
         as_operations_destroy(&ops);
     }
 
-
-    public func udfRegister(name: String, content: String) throws -> Bool {
+    public func udfRegister(name: String, content: String) -> Bool {
         guard let umpContent = Utils.stringToUPointer(content) else {
             return false;
         }
 
-        var result = true;
         var udf_content = as_bytes();
         as_bytes_init_wrap(&udf_content, umpContent, UInt32(content.utf8.count), true);
 
         if (aerospike_udf_put(&self.conn, &self.err, nil, name, AS_UDF_TYPE_LUA, &udf_content) != AEROSPIKE_OK) {
-            throw AerospikeError.Error(message: Utils.getText2(&self.err.message, 1024), code: self.err.code.rawValue);
-            result = false;
+            self.error = AerospikeError.Error(message: Utils.getText2(&self.err.message, 1024), code: self.err.code.rawValue);
+            return false;
         }
 
         as_bytes_destroy(&udf_content);
-        return result;
+        return true;
     }
 
-    public func udfRemove(name: String) throws -> Bool {
+    public func udfRemove(name: String) -> Bool {
         if (aerospike_udf_remove(&self.conn, &self.err, nil, name) != AEROSPIKE_OK) {
-            throw AerospikeError.Error(message: Utils.getText2(&self.err.message, 1024), code: self.err.code.rawValue);
+            self.error = AerospikeError.Error(message: Utils.getText2(&self.err.message, 1024), code: self.err.code.rawValue);
             return false;
         }
 
         return true;
     }
 
-    public func udfApply(module: String, func fname: String, namespase: String? = nil, set: String, key: String, args: [AsBin] = []) throws -> AsBin? {
+    public func udfApply(module: String, func fname: String, namespase: String? = nil, set: String, key: String, args: [AsBin] = []) -> AsBin? {
         guard let ns = namespase ?? self.namespace else {
-            throw AerospikeError.Required(message: "Required namespace");
+            self.error = AerospikeError.Required(message: "Required namespace");
             return nil;
         }
 
@@ -158,43 +155,39 @@ public class Connection {
         var asArgs = as_arraylist();
         as_arraylist_init(&asArgs, UInt32(args.count), 0);
         for bin in args {
-            switch(bin.type) {
-                case .String:
-                    as_arraylist_append_str(&asArgs, bin.string);
+            switch(bin) {
+                case is String:
+                    as_arraylist_append_str(&asArgs, bin as! String);
 
-                case .Integer:
-                    if let i = bin.integer {
-                        as_arraylist_append_int64(&asArgs, Int64(i));
-                    } else {
-                        throw AerospikeError.Required("Incorrect value in args");
-                        return nil;
-                    }
+                case is Int:
+                    as_arraylist_append_int64(&asArgs, Int64(bin as! Int));
 
-                case .Double:
-                    if let i = bin.double {
-                        as_arraylist_append_double(&asArgs, i);
-                    } else {
-                        throw AerospikeError.Required("Incorrect value in args");
-                        return nil;
-                    }
+                case is Double:
+                    as_arraylist_append_double(&asArgs, bin as! Double);
 
                 default:
-                    throw AerospikeError.Required("Unsupported type in args");
+                    self.error = AerospikeError.Required(message: "Unsupported type in args");
                     return nil;
             }
-
         }
 
         var p_result: UnsafeMutablePointer<as_val>? = nil;
         if (aerospike_key_apply(&self.conn, &self.err, nil, &asKey, module, fname, castArrayListToList(&asArgs), &p_result) != AEROSPIKE_OK) {
-            throw AerospikeError.Error(message: Utils.getText2(&self.err.message, 1024), code: self.err.code.rawValue);
+            self.error = AerospikeError.Error(message: Utils.getText2(&self.err.message, 1024), code: self.err.code.rawValue);
             return nil;
         }
 
         if let rval = p_result {
-            return AsRecord.valToBin(val: UnsafePointer(rval))
+            return AsRecord.parseAsVal(val: UnsafePointer(rval))
         }
 
         return nil;
+    }
+
+    func getLastError() -> AerospikeError? {
+        let err = self.error;
+        self.error = nil;
+
+        return err;
     }
 }
