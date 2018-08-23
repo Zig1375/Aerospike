@@ -3,7 +3,7 @@ import Foundation
 public struct List : AsBin, CustomStringConvertible {
     public var array : [AsBin] = [AsBin]();
 
-    subscript<T>(index : Int) -> T? {
+    public subscript<T>(index : Int) -> T? {
         set {
             if let newValue = newValue as? AsBin {
                 self.array[index] = newValue;

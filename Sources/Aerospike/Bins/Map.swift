@@ -3,7 +3,7 @@ import Foundation
 public struct Map : AsBin, CustomStringConvertible {
     public var map : [AnyHashable : AsBin] = [AnyHashable : AsBin]();
 
-    subscript<T>(index : AnyHashable) -> T? {
+    public subscript<T>(index : AnyHashable) -> T? {
         set {
             if let newValue = newValue as? AsBin {
                 self.map[index] = newValue
