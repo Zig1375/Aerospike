@@ -29,8 +29,8 @@ public class Connection {
         aerospike_destroy(&self.conn);
     }
 
-    public func get(namespase: String? = nil, set: String, key: String) -> AsRecord? {
-        guard let ns = namespase ?? self.namespace else {
+    public func get(namespace: String? = nil, set: String, key: String) -> AsRecord? {
+        guard let ns = namespace ?? self.namespace else {
             self.error = AerospikeError.Required(message: "Required namespace");
             return nil;
         }
@@ -63,8 +63,8 @@ public class Connection {
         return record;
     }
 
-    public func set(namespase: String? = nil, set: String, key: String, record: AsRecord) {
-        guard let ns = namespase ?? self.namespace else {
+    public func set(namespace: String? = nil, set: String, key: String, record: AsRecord) {
+        guard let ns = namespace ?? self.namespace else {
             self.error = AerospikeError.Required(message: "Required namespace");
             return;
         }
@@ -143,8 +143,8 @@ public class Connection {
         return true;
     }
 
-    public func udfApply(module: String, func fname: String, namespase: String? = nil, set: String, key: String, args: [AsBin] = []) -> AsBin? {
-        guard let ns = namespase ?? self.namespace else {
+    public func udfApply(module: String, func fname: String, namespace: String? = nil, set: String, key: String, args: [AsBin] = []) -> AsBin? {
+        guard let ns = namespace ?? self.namespace else {
             self.error = AerospikeError.Required(message: "Required namespace");
             return nil;
         }
