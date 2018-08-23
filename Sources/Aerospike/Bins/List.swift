@@ -14,11 +14,11 @@ public struct List : AsBin, CustomStringConvertible {
         }
     }
 
-    init() {
+    public init() {
 
     }
 
-    init(array: [AsBin]) {
+    public init(array: [AsBin]) {
         self.array = array;
     }
 

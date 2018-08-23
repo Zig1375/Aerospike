@@ -14,11 +14,11 @@ public struct Map : AsBin, CustomStringConvertible {
         }
     }
 
-    init() {
+    public init() {
 
     }
 
-    init(map: [AnyHashable : AsBin]) {
+    public init(map: [AnyHashable : AsBin]) {
         self.map = map;
     }
 
