@@ -172,6 +172,16 @@ public class Connection {
         }
 
         var p_result: UnsafeMutablePointer<as_val>? = nil;
+
+        defer {
+            if (p_result != nil) {
+                as_val_destroy(&p_result);
+            }
+
+            as_arraylist_destroy(&asArgs);
+        }
+
+
         if (aerospike_key_apply2(&self.conn, &self.err, &asKey, module, fname, &asArgs, &p_result) != AEROSPIKE_OK) {
             self.error = AerospikeError.Error(message: Utils.getText2(&self.err.message, 1024), code: self.err.code.rawValue);
             return nil;
