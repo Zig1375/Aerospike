@@ -184,7 +184,7 @@ public class Connection {
         return nil;
     }
 
-    func getLastError() -> AerospikeError? {
+    public func getLastError() -> AerospikeError? {
         let err = self.error;
         self.error = nil;
 
