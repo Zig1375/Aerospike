@@ -3,7 +3,6 @@ import libaerospike
 
 public class Connection {
     private var conn: aerospike;
-    private var err: as_error;
     private let namespace: String?;
     private var error: AerospikeError? = nil;
 
@@ -11,7 +10,7 @@ public class Connection {
         self.namespace = namespace;
 
         var config: as_config = as_config();
-        self.err = as_error();
+        var err = as_error();
 
         as_config_init(&config);
         as_config_add_host(&config, host, port);
@@ -19,13 +18,16 @@ public class Connection {
         self.conn = aerospike();
         aerospike_init(&self.conn, &config);
 
-        if (aerospike_connect(&self.conn, &self.err) != AEROSPIKE_OK) {
-            throw AerospikeError.Error(message: Utils.getText2(&self.err.message, 1024), code: self.err.code.rawValue)
+        if (aerospike_connect(&self.conn, &err) != AEROSPIKE_OK) {
+            throw AerospikeError.Error(message: Utils.getText2(&err.message, 1024), code: err.code.rawValue)
         }
+
+        log_enabler();
     }
 
     deinit {
-        aerospike_close(&self.conn, &self.err);
+        var err = as_error();
+        aerospike_close(&self.conn, &err);
         aerospike_destroy(&self.conn);
     }
 
@@ -36,11 +38,16 @@ public class Connection {
         }
 
         var asKey: as_key = as_key();
-        as_key_init_str(&asKey, ns, set, key);
+        as_key_init(&asKey, ns, set, key);
+
+        defer {
+            as_key_destroy(&asKey);
+        }
 
         var p_rec: UnsafeMutablePointer<as_record>? = nil;
+        var err = as_error();
 
-        switch(aerospike_key_get(&self.conn, &self.err, nil, &asKey, &p_rec)) {
+        switch(aerospike_key_get(&self.conn, &err, nil, &asKey, &p_rec)) {
             case AEROSPIKE_OK:
                 break;
 
@@ -48,7 +55,7 @@ public class Connection {
                 return nil;
 
             default:
-                self.error = AerospikeError.Error(message: Utils.getText2(&self.err.message, 1024), code: self.err.code.rawValue);
+                self.error = AerospikeError.Error(message: Utils.getText2(&err.message, 1024), code: err.code.rawValue);
                 return nil;
         }
 
@@ -76,7 +83,11 @@ public class Connection {
         }
 
         var asKey: as_key = as_key();
-        as_key_init_str(&asKey, ns, set, key);
+        as_key_init(&asKey, ns, set, key);
+
+        defer {
+            as_key_destroy(&asKey);
+        }
 
         var ops = as_operations();
         as_operations_init(&ops, UInt16(bins.count));
@@ -107,10 +118,11 @@ public class Connection {
         }
 
         var rec : UnsafeMutablePointer<as_record>? = nil;
-        if (aerospike_key_operate(&self.conn, &self.err, nil, &asKey, &ops, &rec) == AEROSPIKE_OK) {
+        var err = as_error();
+        if (aerospike_key_operate(&self.conn, &err, nil, &asKey, &ops, &rec) == AEROSPIKE_OK) {
             as_record_destroy(&rec!.pointee);
         } else {
-            self.error = AerospikeError.Error(message: Utils.getText2(&self.err.message, 1024), code: self.err.code.rawValue);
+            self.error = AerospikeError.Error(message: Utils.getText2(&err.message, 1024), code: err.code.rawValue);
             return;
         }
 
@@ -125,8 +137,9 @@ public class Connection {
         var udf_content = as_bytes();
         as_bytes_init_wrap(&udf_content, umpContent, UInt32(content.utf8.count), true);
 
-        if (aerospike_udf_put(&self.conn, &self.err, nil, name, AS_UDF_TYPE_LUA, &udf_content) != AEROSPIKE_OK) {
-            self.error = AerospikeError.Error(message: Utils.getText2(&self.err.message, 1024), code: self.err.code.rawValue);
+        var err = as_error();
+        if (aerospike_udf_put(&self.conn, &err, nil, name, AS_UDF_TYPE_LUA, &udf_content) != AEROSPIKE_OK) {
+            self.error = AerospikeError.Error(message: Utils.getText2(&err.message, 1024), code: err.code.rawValue);
             return false;
         }
 
@@ -135,8 +148,9 @@ public class Connection {
     }
 
     public func udfRemove(name: String) -> Bool {
-        if (aerospike_udf_remove(&self.conn, &self.err, nil, name) != AEROSPIKE_OK) {
-            self.error = AerospikeError.Error(message: Utils.getText2(&self.err.message, 1024), code: self.err.code.rawValue);
+        var err = as_error();
+        if (aerospike_udf_remove(&self.conn, &err, nil, name) != AEROSPIKE_OK) {
+            self.error = AerospikeError.Error(message: Utils.getText2(&err.message, 1024), code: err.code.rawValue);
             return false;
         }
 
@@ -150,7 +164,7 @@ public class Connection {
         }
 
         var asKey: as_key = as_key();
-        as_key_init_str(&asKey, ns, set, key);
+        as_key_init(&asKey, ns, set, key);
 
         var asArgs = as_arraylist();
         as_arraylist_init(&asArgs, UInt32(args.count), 0);
@@ -174,16 +188,18 @@ public class Connection {
         var p_result: UnsafeMutablePointer<as_val>? = nil;
 
         defer {
-            if (p_result != nil) {
-                as_val_destroy(&p_result);
-            }
-
             as_arraylist_destroy(&asArgs);
+            as_key_destroy(&asKey);
+
+            if (p_result != nil) {
+                as_val_val_destroy(&p_result!.pointee);
+            }
         }
 
-
-        if (aerospike_key_apply2(&self.conn, &self.err, &asKey, module, fname, &asArgs, &p_result) != AEROSPIKE_OK) {
-            self.error = AerospikeError.Error(message: Utils.getText2(&self.err.message, 1024), code: self.err.code.rawValue);
+        var err = as_error();
+        if (aerospike_key_apply(&self.conn, &err, nil, &asKey, module, fname, nil, &p_result) != AEROSPIKE_OK) {
+        //if (aerospike_key_apply2(&self.conn, &err, &asKey, module, fname, &asArgs, &p_result) != AEROSPIKE_OK) {
+            self.error = AerospikeError.Error(message: Utils.getText2(&err.message, 1024), code: err.code.rawValue);
             return nil;
         }
 
