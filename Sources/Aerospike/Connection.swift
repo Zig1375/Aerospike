@@ -21,8 +21,6 @@ public class Connection {
         if (aerospike_connect(&self.conn, &err) != AEROSPIKE_OK) {
             throw AerospikeError.Error(message: Utils.getText2(&err.message, 1024), code: err.code.rawValue)
         }
-
-        log_enabler();
     }
 
     deinit {
