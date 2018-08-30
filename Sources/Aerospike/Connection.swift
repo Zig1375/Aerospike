@@ -195,8 +195,7 @@ public class Connection {
         }
 
         var err = as_error();
-        if (aerospike_key_apply(&self.conn, &err, nil, &asKey, module, fname, nil, &p_result) != AEROSPIKE_OK) {
-        //if (aerospike_key_apply2(&self.conn, &err, &asKey, module, fname, &asArgs, &p_result) != AEROSPIKE_OK) {
+        if (aerospike_key_apply2(&self.conn, &err, &asKey, module, fname, &asArgs, &p_result) != AEROSPIKE_OK) {
             self.error = AerospikeError.Error(message: Utils.getText2(&err.message, 1024), code: err.code.rawValue);
             return nil;
         }
