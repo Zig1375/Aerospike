@@ -40,3 +40,18 @@
         let someMap  = val["some_map"];
     }
 ```
+
+
+## Register UDF
+
+```swift
+    let result = conn.udfRegister(name: "myudf.lua", content: "CONTENT OF LUA FILE"); // true or false
+```
+
+
+# Applying a UDF on a Record
+
+```swift
+    let result = conn.udfApply(module: "myudf", func: "func_name", set: "test", key: "1", args: [123456, "abc"]);
+    print(result);
+```
