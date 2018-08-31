@@ -16,11 +16,11 @@
 
 ```swift
     let record = AsRecord();
-    record.add(name: "some_int", bin: AsBin(100500));
-    record.add(name: "some_int_incr", bin: AsBin(123, increment: false));
-    record.add(name: "some_double", bin: AsBin(100.5001));
-    record.add(name: "some_string", bin: AsBin("test3"));
-    record.add(name: "some_boolean", bin: AsBin(false));
+    record.add(name: "some_int", bin: 100500);
+    record.add(name: "some_double", bin: 100.5001);
+    record.add(name: "some_string", bin: "Hello Wolrd");
+    record.add(name: "some_list", bin: List(array: [1,2,3]));
+    record.add(name: "some_map", bin: Map(map: [1:"1", 2: "2"]));
 
     conn.set(set: "test", key: "100500", record: record);
 //  conn.set(namespase: "ns", set: "test", key: "100500", record: record);
@@ -33,10 +33,10 @@
 ```swift
 //  if let val = conn.get(namespase: "ns", set: "test", key: "100500") {
     if let val = conn.get(set: "test", key: "100500") {
-        print("some_int", val["some_int"]!.integer!)
-        print("some_int_incr", val["some_int_incr"]!.integer!)
-        print("some_double", val["some_double"]!.double!)
-        print("some_string", val["some_string"]!.string)
-        print("some_boolean", val["some_boolean"]!.boolean)
+        let someInt  = val["some_int"];
+        let someDbl  = val["some_double"];
+        let someBool = val["some_string"];
+        let someList = val["some_list"];
+        let someMap  = val["some_map"];
     }
 ```
