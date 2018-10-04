@@ -2,6 +2,7 @@ import Foundation
 import libaerospike
 
 public class Connection {
+    public let created: Date = Date();
     private var conn: aerospike;
     private let namespace: String?;
     private var error: AerospikeError? = nil;
