@@ -186,7 +186,7 @@ public class Connection {
         return true;
     }
 
-    public func udfApply(module: String, func fname: String, namespace: String? = nil, set: String, key: String, args: [AsBin] = []) -> AsBin? {
+    public func udfApply(module: String, func fname: String, namespace: String? = nil, set: String, key: String, args: [AsBin] = [], policy: AerospikePolicyApply? = nil) -> AsBin? {
         guard let ns = namespace ?? self.namespace else {
             self.error = AerospikeError.Required(message: "Required namespace");
             return nil;
@@ -226,7 +226,15 @@ public class Connection {
         }
 
         var err = as_error();
-        if (aerospike_key_apply2(&self.conn, &err, &asKey, module, fname, &asArgs, &p_result) != AEROSPIKE_OK) {
+        let result: as_status;
+        if let p = policy {
+            var pp = p.getPolicy();
+            result = aerospike_key_apply2(&self.conn, &err, &pp, &asKey, module, fname, &asArgs, &p_result);
+        } else {
+            result = aerospike_key_apply2(&self.conn, &err, nil, &asKey, module, fname, &asArgs, &p_result);
+        }
+
+        if (result != AEROSPIKE_OK) {
             self.error = AerospikeError.Error(message: Utils.getText2(&err.message, 1024), code: err.code.rawValue);
             return nil;
         }
