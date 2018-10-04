@@ -5,6 +5,7 @@ public class Connection {
     private var conn: aerospike;
     private let namespace: String?;
     private var error: AerospikeError? = nil;
+    private var isOpen: Bool = false;
 
     public init(host: String, port: UInt16 = 3000, namespace: String? = nil) throws {
         self.namespace = namespace;
@@ -21,15 +22,27 @@ public class Connection {
         if (aerospike_connect(&self.conn, &err) != AEROSPIKE_OK) {
             throw AerospikeError.Error(message: Utils.getText2(&err.message, 1024), code: err.code.rawValue)
         }
+
+        self.isOpen = true;
     }
 
     deinit {
+        if (self.isOpen) {
+            var err = as_error();
+            aerospike_close(&self.conn, &err);
+            aerospike_destroy(&self.conn);
+        }
+    }
+
+    public func close() {
         var err = as_error();
         aerospike_close(&self.conn, &err);
         aerospike_destroy(&self.conn);
+
+        self.isOpen = false;
     }
 
-    public func get(namespace: String? = nil, set: String, key: String) -> AsRecord? {
+    public func get(namespace: String? = nil, set: String, key: String, policy: AerospikePolicyRead? = nil) -> AsRecord? {
         guard let ns = namespace ?? self.namespace else {
             self.error = AerospikeError.Required(message: "Required namespace");
             return nil;
@@ -45,7 +58,16 @@ public class Connection {
         var p_rec: UnsafeMutablePointer<as_record>? = nil;
         var err = as_error();
 
-        switch(aerospike_key_get(&self.conn, &err, nil, &asKey, &p_rec)) {
+
+        let result: as_status;
+        if let p = policy {
+            var pp = p.getPolicy();
+            result = aerospike_key_get(&self.conn, &err, &pp, &asKey, &p_rec)
+        } else {
+            result = aerospike_key_get(&self.conn, &err, nil, &asKey, &p_rec)
+        }
+
+        switch(result) {
             case AEROSPIKE_OK:
                 break;
 
@@ -68,7 +90,7 @@ public class Connection {
         return record;
     }
 
-    public func set(namespace: String? = nil, set: String, key: String, record: AsRecord) {
+    public func set(namespace: String? = nil, set: String, key: String, record: AsRecord, policy: AerospikePolicyOperate? = nil) {
         guard let ns = namespace ?? self.namespace else {
             self.error = AerospikeError.Required(message: "Required namespace");
             return;
@@ -117,7 +139,16 @@ public class Connection {
 
         var rec : UnsafeMutablePointer<as_record>? = nil;
         var err = as_error();
-        if (aerospike_key_operate(&self.conn, &err, nil, &asKey, &ops, &rec) == AEROSPIKE_OK) {
+
+        let result: as_status;
+        if let p = policy {
+            var pp = p.getPolicy();
+            result = aerospike_key_operate(&self.conn, &err, &pp, &asKey, &ops, &rec)
+        } else {
+            result = aerospike_key_operate(&self.conn, &err, nil, &asKey, &ops, &rec)
+        }
+
+        if (result == AEROSPIKE_OK) {
             as_record_destroy(&rec!.pointee);
         } else {
             self.error = AerospikeError.Error(message: Utils.getText2(&err.message, 1024), code: err.code.rawValue);
